@@ -1,0 +1,250 @@
+{{template "head.html"}}
+
+<div class="row" style="margin-top: 20px;">
+    <div class="col">
+        <div class="row mb-3">
+            <label for="bucketList" class="col-sm-1 col-form-label col-form-label-sm" style="line-height: 30px;">bucket</label>
+            <div class="col-sm-3">
+                <select class="form-control form-select" id="bucketList"></select>
+            </div>
+
+            <label id="dirLabel" class="col-sm-1 col-form-label col-form-label-sm" style="line-height: 30px;">目录</label>
+            <!--
+            <div class="col-sm-3">
+                <select class="form-control form-select"></select>
+            </div>
+            -->
+        </div>
+    </div>
+    <div class="col" style="text-align: right;">
+        <label for="ajax_myfile" class="btn btn-outline-info">选择文件</label>
+        <input type="file" name="file" value="" id="ajax_myfile" multiple style="display: none;"/>
+        <button type="button" class="btn btn-outline-success" id="ajax_button">上传</button>
+        <button type="button" class="btn btn-outline-secondary" id="ajax_stop">停止</button>
+    </div>
+</div>
+
+
+<table class="table table-bordered table-hover">
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>大小</th>
+            <th>后缀</th>
+            <th>状态</th>
+            <th>bucket</th>
+            <th>目录</th>
+            <th>创建日期</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody id="fileList">
+<!--        <tr>-->
+<!--            <th scope="row">1</th>-->
+<!--            <td>Mark</td>-->
+<!--            <td>Otto</td>-->
+<!--            <td>@mdo</td>-->
+<!--        </tr>-->
+    </tbody>
+</table>
+<nav aria-label="Page navigation example">
+    <ul class="pagination">
+        <li class="page-item"><a class="page-link" href="#">Previous</a></li>
+        <li class="page-item"><a class="page-link" href="#">1</a></li>
+        <li class="page-item active"><a class="page-link" href="#">2</a></li>
+        <li class="page-item"><a class="page-link" href="#">3</a></li>
+        <li class="page-item"><a class="page-link" href="#">Next</a></li>
+    </ul>
+</nav>
+<script>
+    function Upload() {
+        this.init();
+    }
+    Upload.prototype.init = function () {
+        const _this = this;
+        // 设置bucket
+        const bucketList = document.getElementById('bucketList');
+        $fileApi.get(`/file/bucketList`).then(function (data) {
+            if (data && Array.isArray(data.Buckets)) {
+                let optionHtml = '';
+                data.Buckets.forEach(function (bucket, index) {
+                    if (index === 0) {
+                        optionHtml += `<option selected value="${bucket.Name}">${bucket.Name}</option>`;
+                        _this.list({ "bucket": bucket.Name });
+                        _this.getDir({ "bucket": bucket.Name });
+                    } else {
+                        optionHtml += `<option value="${bucket.Name}">${bucket.Name}</option>`;
+                    }
+                });
+                bucketList.innerHTML = optionHtml;
+            }
+        });
+        bucketList.addEventListener('change', function (e) {
+            _this.list({ "bucket": e.target.value });
+            _this.getDir({ "bucket": e.target.value });
+        }, false);
+
+        _this.uploadFile();
+    }
+    Upload.prototype._getFormValue = function () {
+        return {
+            "bucket": document.getElementById("bucketList").value,
+        };
+    }
+    // 上传文件
+    Upload.prototype.uploadFile = function () {
+        const _this = this;
+        // 上传文件
+        var ajax_button = document.getElementById("ajax_button");
+        ajax_button.onclick = function() {
+            var fileDom = document.getElementById("ajax_myfile");
+            var  res = multiFileUpload({
+                url: $config.fileUpload,//上传地址
+                formName: fileDom.getAttribute("name"),
+                files: fileDom.files,//上传的文件
+                data: function () {
+                    const formValue = _this._getFormValue();
+                    return {
+                        "bucket": formValue.bucket,
+                    }
+                },
+                uploaduStart:function(event){//开始上传
+                    console.log('开始上传');
+                },
+                uploadedBeing:function(event){//上传进度事件，文件在上次的过程中，会多次触发该事件，返回一个event事件对象
+                    if (event.lengthComputable) {//返回一个  长度可计算的属性，文件特别小时，监听不到，返回false
+                        //四舍五入
+                        var percent = Math.round(event.loaded * 100 / event.total);//event.loaded:表示当前已经传输完成的字节数。
+                        //event.total:当前要传输的一个总的大小.通过传输完成的除以总的，就得到一个传输比率
+                        console.log('进度', percent);
+                    }
+                },
+                uploadSuccess:function(event){//上传成功
+                    console.log('上传成功');
+                    //console.log(xhr.responseText);//得到服务器返回的数据
+                    _this.list({ "bucket": document.getElementById("bucketList").value });
+                },
+                uploadError:function(event){//上传出错
+                    console.log('发生错误');
+                },
+                uploadCancelled:function(event){//取消上传
+                    console.log('操作被取消');
+                },
+                uploadEnd:function(event){//上传结束
+                    console.log('传输结束，不管成功失败都会被触发');
+                },
+                serviceCallback:function(data){//服务器回掉返回的数据
+                    console.log(data);
+                },
+                finish: function () {
+                    fileDom.value = '';
+                }
+            });
+
+            var ajax_stop = document.getElementById("ajax_stop");
+            ajax_stop.onclick=function(){
+                res.abort();
+            }
+        }
+    }
+    // 获取文件列表
+    Upload.prototype.list = function ({ bucket = "" }) {
+        if (bucket === "") {
+            console.error("bucket 不能为空");
+            return;
+        }
+        const statusMap = {
+            "0": "正常",
+            "1": "逻辑删除",
+            "2": "物理删除",
+        }
+        $fileApi.post('/file/pageList', {
+            data: {
+                bucket
+            }
+        })
+            .then(function (data) {
+                if (!Array.isArray(data.list)) {
+                    return;
+                }
+                let html = '';
+                data.list.forEach(function (item) {
+                    html += `
+                <tr>
+                    <th scope="row">${item.name}</th>
+                    <td>${(item.size/1024/1024).toFixed(2)} M</td>
+                    <td>${item.suffix}</td>
+                    <td>${statusMap[item.state]}</td>
+                    <td>${item.bucket}</td>
+                    <td>${item.dir}</td>
+                    <td>${ moment(item.createTime).format('YYYY-MM-DD hh:mm:ss') }</td>
+                    <td>
+                        <a href="${$config.filePreview}${item.fileId}" target="_blank">预览</a>&nbsp;&nbsp;
+                        <a href="${$config.fileDownload}${item.fileId}" target="_blank">下载</a>&nbsp;&nbsp;
+                        <a href="javascript:void(0);" onclick="_this.del('${item.fileId}')">删除</a>&nbsp;&nbsp;
+                    </td>
+                </tr>
+            `;
+                });
+                document.getElementById("fileList").innerHTML= html;
+            })
+            .catch(function (error) {
+                console.log(error);
+                document.getElementById("fileList").innerHTML = ""
+            });
+    }
+    // 删除
+    Upload.prototype.del = function (fileId) {
+        const _this = this;
+        $fileApi.get(`/file/delete/${fileId}`).then(function () {
+            _this.list({ "bucket": document.getElementById("bucketList").value });
+        })
+    }
+    // 获取目录
+    Upload.prototype.getDir = function ({ ele = null, bucket = "", prefix = "" }) {
+        if (bucket === "") {
+            console.error("bucket 不能为空");
+            return;
+        }
+        if (ele) {
+            $(ele).nextAll().remove();
+        }
+        if (ele && prefix === "") {
+            return;
+        }
+        $fileApi.get('/file/bucketPrefixList', {
+            params: {
+                bucket,
+                prefix
+            }
+        }).then(function (res) {
+            // console.log(res);
+            if (Array.isArray(res) && res.length > 0) {
+                let optionHtml = `
+                    <div class="col-sm-3">
+                        <select class="form-control form-select" onchange="upload.formSelectChange(event);">
+                            <option selected selected value=""></option>
+                `;
+                res.forEach(function (dir) {
+                    optionHtml += `<option value="${dir}">${dir}</option>`;
+                });
+                optionHtml += `
+                    </select>
+                </div>
+                `;
+
+                if (ele) {
+                    $(ele).after(optionHtml);
+                } else {
+                    $('#dirLabel').after(optionHtml);
+                }
+            }
+        });
+    }
+    Upload.prototype.formSelectChange = function (e) {
+        this.getDir({ ele: e.target.parentNode, bucket: this._getFormValue().bucket, prefix: e.target.value });
+    }
+    const upload = new Upload();
+
+</script>
+{{template "footer.html" }}
