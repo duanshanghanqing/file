@@ -24,7 +24,7 @@
 
     方式二：后台启动，用于生产环境
         1.编译可执行文件
-        go build -o file-server.ext main.go
+        go build -o file-server main.go
 
         2.后台启动
         sudo nohup ./file-server > nohup_bluebell.log 2>&1 &
