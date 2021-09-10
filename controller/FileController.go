@@ -168,35 +168,6 @@ func (c *FileController) upload(w http.ResponseWriter, r *http.Request, _ httpro
 	_, _ = io.Copy(f, file)
 	_ = f.Close()
 
-	//message := util.NewResponseSuccessMessage()
-	//message.Data = "上传成功"
-	//ret, _ := json.Marshal(message)
-	//_, _ = w.Write(ret)
-	//return
-
-	// 3.本地文件上传到OSS
-	// 创建OSSClient实例。
-	//client, err := oss.New("https://oss-cn-shanghai.aliyuncs.com", "LTAI5tD38nDccyJapbeafV91", "SiykXcKWLRVVrerNLqrOM19E7wtXFV")
-	//if err != nil {
-	//	fmt.Println("Error oss.New:", err)
-	//	message := util.NewResponseFailMessage()
-	//	message.Message = err.Error()
-	//	ret, _ := json.Marshal(message)
-	//	_, _ = w.Write(ret)
-	//	return
-	//}
-
-	// 获取存储空间。
-	//bucket, err := c.client.Bucket("qinguanjia")
-	//if err != nil {
-	//	fmt.Println("Error bucket:", err)
-	//	message := util.NewResponseFailMessage()
-	//	message.Message = err.Error()
-	//	ret, _ := json.Marshal(message)
-	//	_, _ = w.Write(ret)
-	//	return
-	//}
-
 	// 3.本地文件上传到OSS
 	// 读取本地文件。
 	fd, err := os.Open(filePath)
